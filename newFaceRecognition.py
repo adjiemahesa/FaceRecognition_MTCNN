@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Sun Feb 26 12:31:20 2023
@@ -19,6 +20,10 @@ from itertools import combinations
 from scipy.spatial.distance import cosine
 from keras_vggface.utils import preprocess_input
 from keras_vggface.vggface import VGGFace
+import cv2
+
+DIM = 128
+RGB = 3
 
 def euclidean_distance(a, b):
     x1 = a[0]; y1 = a[1]
@@ -171,81 +176,74 @@ def rekonstruksiImage(img):
             
 
 #     return face_images
-
-def loadImageDetectFace(path,jk,umur,fr=False):    
+def loadImageDetectFace(path, face_images, fr=False):
     ftr,files,idfiles,scoreFace,idNumber  =[],[],[],[],0    
     for file in os.listdir(path):
         # print("nmFile ...." + file)
-        # image_path = path+"/"+file
-        extracted_face = face_images(path, 
-                                                  required_size=(224, 224))                
-        if len(extracted_face)>0:
-            if fr==True:
-                for detected_face in extracted_face:
-                    fe = getEncoding(detected_face)
-                    if len(fe)>0:
-                        scoreFace.append(fe)
-                        ftr.append(detected_face)                      
-                        files.append(file)      
-                        idfiles.append(idNumber)
-                        idNumber+=1  
-            else:
-                model_scores   = get_model_scores(extracted_face)        
-                for i in range(len(model_scores)):
-                    scoreFace.append(model_scores[i])
-                    ftr.append(extracted_face[i])                      
-                    files.append(file)      
+        # extracted_faces = face_images
+        # extracted_face = face_images(path, required_size=(224, 224))
+        extracted_face = face_images
+        if fr == True:
+            for detected_face in extracted_face:
+                fe = getEncoding(detected_face)
+                if len(fe) > 0:
+                    scoreFace.append(fe)
+                    ftr.append(detected_face)
+                    files.append(file)
                     idfiles.append(idNumber)
-                    idNumber+=1
-                    
-               
-    comb      = combinations(idfiles, 2)
-    similars  = np.zeros(len(idfiles))
+                    idNumber += 1
+        else:
+            model_scores = get_model_scores(extracted_face)
+            for i in range(len(model_scores)):
+                scoreFace.append(model_scores[i])
+                ftr.append(extracted_face[i])
+                files.append(file)
+                idfiles.append(idNumber)
+                idNumber += 1
+                
+    comb = combinations(idfiles, 2)
+    similars = np.zeros(len(idfiles))
     for c in comb:
-        print(file + "similiar")
-        matches=False
-        if fr==True :
-            matches = face_recognition.compare_faces(np.array(scoreFace[c[0]]), 
-                                                      np.array(scoreFace[c[1]]))
-
+        matches = False
+        if fr == True:
+            matches = face_recognition.compare_faces(
+                np.array(scoreFace[c[0]]), np.array(scoreFace[c[1]])
+                
+            )
         else:
-            diff=cosine(scoreFace[c[0]], scoreFace[c[1]])
-            print(diff)
-            if  diff <= 0.4:
-                matches=True
-            
+            diff = cosine(scoreFace[c[0]], scoreFace[c[1]])
+            if diff <= 0.4:
+                matches = True
+
         if matches:
-            print("Faces Matched")                            
-            similars[c[0]]+=1
-            similars[c[1]]+=1
-        else:
-            print("ada yg tidak match")
-            plt.imshow(ftr[c[0]])
-            plt.show()      
-            plt.imshow(ftr[c[1]])
-            plt.show()      
+            similars[c[0]] += 1
+            similars[c[1]] += 1
 
-    df = pd.DataFrame({'id':np.array(idfiles), 'mirip':similars})          
-    df = df.sort_values(by=['mirip'],ascending=False)  
-    df = df[df['mirip']>1]
+    df = pd.DataFrame({"id": np.array(idfiles), "mirip": similars})
+    df = df.sort_values(by=["mirip"], ascending=False)
+    df = df[df["mirip"] > 1]
     df.reset_index(drop=True, inplace=True)
+
+    return df
+
     #get base on 3 folder->3 face sj
     # selectedFtr,selectedLbl,selectedUsia,selectNm=[],[],[],[]
-    selectedFtr,selectNm=[],[],[],[]
-    cntFace=0
-    for d in range(len(df)):        
-        idfile = df['id'].loc[d]        
-        if files[idfile] not in selectNm:
-            selectedFtr.append(ftr[idfile])
-            # selectedLbl.append(jk)               
-            # selectedUsia.append(umur)
-            selectNm.append(files[idfile])
-            cntFace+=1
-        if cntFace >= 3:
-            break            
-            
-    # return selectedFtr,selectedLbl,selectedUsia,selectNm
-    return selectedFtr,selectNm
+    # selectedFtr, selectNm = [], []
+    # cntFace = 0
+    # for d in range(len(df)):
+    #     idfile = df['id'].loc[d]
+    #     if files[idfile] not in selectNm:
+    #         selectedFtr.append(ftr[idfile])
+    #         # selectedLbl.append(jk)
+    #         # selectedUsia.append(umur)
+    #         selectNm.append(files[idfile])
+    #         cntFace += 1
+    #     if cntFace >= 3:
+    #         break
+
+    # # return selectedFtr,selectedLbl,selectedUsia,selectNm
+    # return selectedFtr, selectNm
+
 
 def getEncoding(detected_face):
     face_endcoding = face_recognition.face_encodings(detected_face)                    
@@ -270,61 +268,63 @@ def get_model_scores(faces):
     # perform prediction
     return model(samples)
 
-if __name__ == '__main__':         
-    
-    
-    path = "lfw/Abdullah_Gul" 
-    detector = mtcnn.MTCNN() 
+if __name__ == '__main__':
+    path = "lfw\Abdullah_Gul"
+    detector = mtcnn.MTCNN()
     idfile = 0
     for dirpath, subdirs, files in os.walk(path):
         # print(files)
         for file in files:
-            # print(file)
             if ".jpg" in file:
                 # print(file)
                 # continue
                 idfile = idfile + 1
                 # print(file)
-                print("File ...." + file)
                 image_path = os.path.join(dirpath, file)
-                needAlign=True
-                
-                noFace=True
+                needAlign = True
+
+                noFace = True
                 face_images = []
+                print(image_path)
                 img = plt.imread(image_path)
-                face_bounding_boxes = face_recognition.face_locations(img)   
-                
+                face_bounding_boxes = face_recognition.face_locations(img)
+
                 # deteksi menggunakan face_recognition
-                if len(face_bounding_boxes)==0:
+                if len(face_bounding_boxes) == 0:
                     print("wajah tidak terdeteksi")
-                    img,face_bounding_boxes = rekonstruksiImage(img)    
+                    img, face_bounding_boxes = rekonstruksiImage(img)
                 for face_location in face_bounding_boxes:
-                    detected_face = getFace(img,face_location)
+                    detected_face = getFace(img, face_location)
                     plt.imshow(detected_face)
                     plt.show()
                     if needAlign:
-                        align_faces    = api.face_alignment(detected_face)            
-                        face_images,no_align_faces = pushToArrImg(align_faces,face_images)
-                        if no_align_faces==False:
-                            noFace=False                
+                        align_faces = api.face_alignment(detected_face)
+                        face_images, no_align_faces = pushToArrImg(
+                            align_faces, face_images)
+                        if no_align_faces == False:
+                            noFace = False
                     else:
-                        face_array = resizeImg(detected_face) 
+                        face_array = resizeImg(detected_face)
                         face_images.append(face_array)
-                        noFace=False
+                        noFace = False
                 # face recognition gagal, digunakan MTCNN
-                if noFace==True :
-                    print("face tdk dapat di align, try with mtcnn")                                  
+                if noFace == True:
+                    print("face tdk dapat di align, try with mtcnn")
                     align_faces = alignFaceMTCNN(img)
-                    face_images,no_align_faces = pushToArrImg(align_faces,face_images)
-                
-                # for face in face_images:
-                = loadImageDetectFace(path) 
+                    face_images.extend(align_faces)
+                    face_images, no_align_faces = pushToArrImg(
+                        align_faces, face_images)
                     
+                # Load images and calculate similarity scores
+                # print(image_path)
+                similarity_df = loadImageDetectFace(path, face_images)
+
+                # # Print similarity results
+                print(similarity_df)
                 continue
-                    
-            if idfile > 0 :
+
+            if idfile > 0:
                 break
-                
-        if idfile >0 :
+
+        if idfile > 0:
             break
-    
